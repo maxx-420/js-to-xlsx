@@ -132,11 +132,13 @@ export class XLSX {
       this.updateStylesTemplate();
     const updatedStylesTemplate = this.getTemplate("xl/styles.xml")
       .replace("{xf}", xfTemplate)
-      .replace(/(?<=<cellXfs count=")\d*(?=")/g, this._xfsCount)
+      .replace(/(?<=<cellXfs count=")(\d*)(?=")/g, this._xfsCount || '$1')
       .replace("{font}", fontTemplate)
-      .replace(/(?<=<fonts count=")\d*(?=")/g, this._fontsCount)
+      .replace(/(?<=<fonts count=")(\d*)(?=")/g, this._fontsCount || '$1')
       .replace("{fill}", fillTemplate)
-      .replace(/(?<=<fills count=")\d*(?=")/g, this._fillsCount);
+      .replace(/(?<=<fills count=")(\d*)(?=")/g, this._fillsCount || '$1');
+
+      console.log(updatedStylesTemplate)
 
     // define file structure
     const xlsx = {
@@ -286,51 +288,32 @@ export class XLSX {
   };
 
   getCellStyle(rowIndex, cellIndex, cellData) {
-    // for header row
-    if (rowIndex == 1) {
-      let headerStyle = {};
-      if (typeof this._getCellStyle == "function") {
-        let cellStyle = this._getCellStyle(rowIndex, cellIndex, cellData);
-        if (typeof cellStyle == "number") {
-          headerStyle = {
-            ...headerStyle,
-            fontId: 2,
-          };
-          return this.createNewXfNode(headerStyle);
-        }
-        if (typeof cellStyle == "object") {
-          headerStyle = {
-            ...headerStyle,
-            ...cellStyle,
-            fontId: 2,
-          };
-          return this.createNewXfNode(headerStyle);
-        }
-      }
+
+    let cellStyle = typeof this._getCellStyle == 'function'?  this._getCellStyle(rowIndex, cellIndex, cellData): this._getCellStyle;
+
+    if(cellStyle == null || cellStyle == undefined){
+      throw new Error('getCellStyle must return a number or object');
     }
 
     const isPrefixQuoteRequired = cellData.toString().match(/^([+,=,-])/g);
 
     if (typeof this._getCellStyle == "function") {
-      let cellStyle = this._getCellStyle(rowIndex, cellIndex);
-      if (isPrefixQuoteRequired) {
         if (typeof cellStyle == "number") {
           // styles upto 12th xfs are in use
           let styleIndex = Math.min(Math.abs(cellStyle), 11);
           cellStyle = {
-            ...CELL_STYLE_ATTRIBUTES[styleIndex],
-            quotePrefix: true,
+            ...CELL_STYLE_ATTRIBUTES[styleIndex]
           };
         }
 
-        return this.createNewXfNode({ ...cellStyle, quotePrefix: true });
-      }
-      if (typeof cellStyle == "number") {
-        // styles upto 12th xfs are in use
-        let styleIndex = Math.min(Math.abs(cellStyle), 11);
-        return styleIndex;
-      }
-      return this.createNewXfNode(cellStyle);
+        if(rowIndex == 1){
+          cellStyle = {
+            ...cellStyle,
+            fontId: FONT_TYPES.bold
+          }
+        }
+
+      return isPrefixQuoteRequired? this.createNewXfNode({ ...cellStyle, quotePrefix: true }): this.createNewXfNode(cellStyle)
     }
 
     return isPrefixQuoteRequired
@@ -582,7 +565,7 @@ export class XLSX {
     return {
       xfTemplate,
       fontTemplate,
-      fillTemplate,
+      fillTemplate
     };
   }
 

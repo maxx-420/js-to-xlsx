@@ -20,7 +20,6 @@ const config = {
             fontId: 0,
             borderId: 1,
             bgColor: '#FF0000',
-            alignment: 'left' 
         }
         return 0
     },
