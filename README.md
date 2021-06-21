@@ -23,15 +23,6 @@ This project showcases downloading client side .xlsx files with a few customizat
 
 IE supported but requires prod build - <code>npm run preview</code>
 
-
-
-## Dependencies
-
-JSZip
-
-FileSaver(can be overriden with a custom solution)
-
-
 ```
 
 const data = [{...}] (Array of objects)
@@ -51,6 +42,13 @@ const config = {
 }
 const xlsx = new XLSX().create(data, config)
 ```
+
+## Dependencies
+
+-JSZip
+
+-FileSaver(can be overriden with a custom solution)
+
 
 ### Cell Styling
 
