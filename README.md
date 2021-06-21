@@ -16,6 +16,7 @@
 ## 🧐 About <a name = "about"></a>
 
 This project showcases downloading client side .xlsx files with a few customization option. Unlike SheetJS, this is a lightweight solution(<100kb). 
+Lots of room for improvement. :)
 
 ## 🏁 Usage <a name = "usage"></a>
 
