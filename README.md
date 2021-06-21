@@ -58,13 +58,13 @@ getCellStyle expects one of the following:
 
 1. Number:
 
-  normal: 0
+    normal: 0
 
-  bold text: 2
+    bold text: 2
 
-  wrap text: 10
+    wrap text: 10
 
-  wrap & bold text: 11
+    wrap & bold text: 11
 
 2. Object literal containing following properties(optional):
 
