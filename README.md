@@ -49,7 +49,7 @@ const xlsx = new XLSX().create(data, config)
 
 -JSZip
 
--FileSaver(can be overriden with a custom solution)
+-FileSaver(can be replaced with a custom solution)
 
 
 ### Cell Styling
