@@ -135,8 +135,6 @@ export class XLSX {
       .replace("{fill}", fillTemplate)
       .replace(/(<fills count=")(\d*)(?=")/g, this._fillsCount? `$1${this._fillsCount}` : '$1$2');
 
-      console.log(updatedStylesTemplate)
-
     // define file structure
     const xlsx = {
       _rels: {
