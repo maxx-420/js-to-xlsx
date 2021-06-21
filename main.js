@@ -6,7 +6,7 @@ import { saveAs } from "file-saver";
 const data = json;
 
 const config = {
-    boldHeader: true,
+    boldHeaders: true,
     wrapAll: true,
     colConfig: [
         {

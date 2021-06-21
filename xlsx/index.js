@@ -36,16 +36,16 @@ const TEXT_ALIGNMENT = {
 
 const CELL_STYLE_ATTRIBUTES = {
   [CELL_STYLES.noStyle]: {
-    fontId: FONT_TYPES.normal,
+    fontType: FONT_TYPES.normal,
   },
   [CELL_STYLES.boldText]: {
-    fontId: FONT_TYPES.bold,
+    fontType: FONT_TYPES.bold,
   },
   [CELL_STYLES.wrapText]: {
     wrap: true,
   },
   [CELL_STYLES.wrappedBoldText]: {
-    fontId: FONT_TYPES.bold,
+    fontType: FONT_TYPES.bold,
     wrap: true,
   },
 };
@@ -96,12 +96,12 @@ const SPECIAL_CHARS = [
 ];
 
 export class XLSX {
-
   _DEFAULT_STYLE = 0;
   _displayedColumns;
-  _boldHeader;
+  _boldHeaders;
+  _upperCaseHeaders;
   _wrapAll;
-  __getCellStyleFn;
+  _getCellStyleFn;
 
   _customXfNodes = [];
   _customFillNodes = [];
@@ -114,9 +114,10 @@ export class XLSX {
 
   create = (aoo = [], config = {}) => {
     this._displayedColumns = config.displayedColumns || [];
-    this._boldHeader = config.boldHeader || true;
+    this._boldHeaders = config.boldHeaders ?? true;
+    this._upperCaseHeaders = config.upperCaseHeaders ?? false;
     this._wrapAll = config.wrapAll || false;
-    this.__getCellStyleFn = config.getCellStyle || 0;
+    this._getCellStyleFn = config.getCellStyle || 0;
     this._colConfig = config.colConfig || [];
 
     this._setDisplayedColumns(aoo);
@@ -129,11 +130,20 @@ export class XLSX {
       this._updateStylesTemplate();
     const updatedStylesTemplate = this._getTemplate("xl/styles.xml")
       .replace("{xf}", xfTemplate)
-      .replace(/(<cellXfs count=")(\d*)(?=")/g, this._xfsCount? `$1${this._xfsCount}` : '$1$2')
+      .replace(
+        /(<cellXfs count=")(\d*)(?=")/g,
+        this._xfsCount ? `$1${this._xfsCount}` : "$1$2"
+      )
       .replace("{font}", fontTemplate)
-      .replace(/(<fonts count=")(\d*)(?=")/g, this._fontsCount? `$1${this._fontsCount}` : '$1$2')
+      .replace(
+        /(<fonts count=")(\d*)(?=")/g,
+        this._fontsCount ? `$1${this._fontsCount}` : "$1$2"
+      )
       .replace("{fill}", fillTemplate)
-      .replace(/(<fills count=")(\d*)(?=")/g, this._fillsCount? `$1${this._fillsCount}` : '$1$2');
+      .replace(
+        /(<fills count=")(\d*)(?=")/g,
+        this._fillsCount ? `$1${this._fillsCount}` : "$1$2"
+      );
 
     // define file structure
     const xlsx = {
@@ -188,7 +198,11 @@ export class XLSX {
   };
 
   _createWorksheetTemplate = (aoa) => {
-    let header = this._displayedColumns.map((colKey) => colKey.toUpperCase());
+    let header = this._displayedColumns.map((colKey) =>
+      this._upperCaseHeaders
+        ? colKey.toUpperCase()
+        : colKey.charAt(0).toUpperCase() + colKey.slice(1)
+    );
 
     let rows = [header, ...aoa]
       .map((rowData, rowIndex) => this._createRows(rowData, rowIndex + 1))
@@ -283,40 +297,35 @@ export class XLSX {
   };
 
   _getCellStyle(rowIndex, cellIndex, cellData) {
+    let cellStyle =
+      typeof this._getCellStyleFn == "function"
+        ? this._getCellStyleFn(rowIndex, cellIndex, cellData)
+        : this._DEFAULT_STYLE;
 
-    let cellStyle = typeof this.__getCellStyleFn == 'function'?  this.__getCellStyleFn(rowIndex, cellIndex, cellData): this._DEFAULT_STYLE;
-
-    if(cellStyle == null || cellStyle == undefined){
+    if (cellStyle == null || cellStyle == undefined) {
       cellStyle = this._DEFAULT_STYLE;
     }
 
     const isPrefixQuoteRequired = cellData.toString().match(/^([+,=,-])/g);
 
-    if (typeof this.__getCellStyleFn == "function") {
-        if (typeof cellStyle == "number") {
-          // styles upto 12th xfs are in use
-          let styleIndex = Math.min(Math.abs(cellStyle), 11);
-          cellStyle = {
-            ...CELL_STYLE_ATTRIBUTES[styleIndex]
-          };
-        }
+    if (typeof cellStyle == "number") {
+      // styles upto 12th xfs are in use
+      let styleIndex = Math.min(Math.abs(cellStyle), 11);
+      cellStyle = {
+        ...CELL_STYLE_ATTRIBUTES[styleIndex],
+      };
+    }
 
-        if(rowIndex == 1){
-          cellStyle = {
-            ...cellStyle,
-            fontId: FONT_TYPES.bold
-          }
-        }
-
-      return isPrefixQuoteRequired? this._createNewXfNode({ ...cellStyle, quotePrefix: true }): this._createNewXfNode(cellStyle)
+    if (rowIndex == 1) {
+      cellStyle = {
+        ...cellStyle,
+        fontType: this._boldHeaders ? FONT_TYPES.bold : cellStyle.fontType,
+      };
     }
 
     return isPrefixQuoteRequired
-      ? this._createNewXfNode({
-          ...CELL_STYLE_ATTRIBUTES[this._DEFAULT_STYLE],
-          quotePrefix: true,
-        })
-      : this._DEFAULT_STYLE;
+      ? this._createNewXfNode({ ...cellStyle, quotePrefix: true })
+      : this._createNewXfNode(cellStyle);
   }
 
   _getCellPos(cellIndex, rowIndex) {
@@ -361,7 +370,7 @@ export class XLSX {
     let existingStyle = this._customXfNodes.find(({ data }) => {
       return (
         data.fontId == fontType &&
-        data.borderId == (border? 1: 0) &&
+        data.borderId == (border ? 1 : 0) &&
         data.fontColor == fontColor &&
         data.bgColor == bgColor &&
         data.wrap == wrap &&
@@ -377,7 +386,7 @@ export class XLSX {
         xfId: this._xfsCount,
         data: {
           fontId: fontType,
-          borderId: border? 1: 0,
+          borderId: border ? 1 : 0,
           fontColor,
           bgColor,
           wrap,
@@ -396,25 +405,25 @@ export class XLSX {
     let regExp;
     switch (nodeType) {
       case STYLE_NODE_TYPE.xf:
-        regExp = new RegExp(
-          `(<${STYLE_NODE_TYPE.xf} count=")\\d*(?=")`,
-          "g"
-        );
-        nodeCount = +styleTemplate.match(regExp).join('').replace(`<${STYLE_NODE_TYPE.xf} count="`,'');
+        regExp = new RegExp(`(<${STYLE_NODE_TYPE.xf} count=")\\d*(?=")`, "g");
+        nodeCount = +styleTemplate
+          .match(regExp)
+          .join("")
+          .replace(`<${STYLE_NODE_TYPE.xf} count="`, "");
         break;
       case STYLE_NODE_TYPE.font:
-        regExp = new RegExp(
-          `(<${STYLE_NODE_TYPE.font} count=")\\d*(?=")`,
-          "g"
-        );
-        nodeCount = +styleTemplate.match(regExp).join('').replace(`<${STYLE_NODE_TYPE.font} count="`,'');;
+        regExp = new RegExp(`(<${STYLE_NODE_TYPE.font} count=")\\d*(?=")`, "g");
+        nodeCount = +styleTemplate
+          .match(regExp)
+          .join("")
+          .replace(`<${STYLE_NODE_TYPE.font} count="`, "");
         break;
       case STYLE_NODE_TYPE.fill:
-        regExp = new RegExp(
-          `(<${STYLE_NODE_TYPE.fill} count=")\\d*(?=")`,
-          "g"
-        );
-        nodeCount = +styleTemplate.match(regExp).join('').replace(`<${STYLE_NODE_TYPE.fill} count="`,'');;
+        regExp = new RegExp(`(<${STYLE_NODE_TYPE.fill} count=")\\d*(?=")`, "g");
+        nodeCount = +styleTemplate
+          .match(regExp)
+          .join("")
+          .replace(`<${STYLE_NODE_TYPE.fill} count="`, "");
         break;
       default:
         nodeCount = 0;
@@ -560,7 +569,7 @@ export class XLSX {
     return {
       xfTemplate,
       fontTemplate,
-      fillTemplate
+      fillTemplate,
     };
   }
 
@@ -614,23 +623,27 @@ export class XLSX {
   }
 
   createColumnConfig(aoa) {
-    const cols = this._displayedColumns.map((colKey, colIndex)=>{
-        const {width} = this._colConfig.find(config=> config.colKey == colKey) || { width: 0};
+    const cols = this._displayedColumns
+      .map((colKey, colIndex) => {
+        const { width } = this._colConfig.find(
+          (config) => config.colKey == colKey
+        ) || { width: 0 };
         return createNode({
-          nodeName: 'col',
+          nodeName: "col",
           attr: {
-            min: colIndex+1,
-            max: colIndex+1,
-            width: this.calculateColumnWidth(aoa,colIndex,colKey, width),
-            customWidth: 1
-          }
-        })
-    }).join('');
+            min: colIndex + 1,
+            max: colIndex + 1,
+            width: this.calculateColumnWidth(aoa, colIndex, colKey, width),
+            customWidth: 1,
+          },
+        });
+      })
+      .join("");
 
-    return `<cols>${cols}</cols>`
+    return `<cols>${cols}</cols>`;
   }
 
-  calculateColumnWidth(aoa,colIndex, colKey, customWidth) {
+  calculateColumnWidth(aoa, colIndex, colKey, customWidth) {
     let max = colKey.length;
     let len, lineSplit, str;
 
@@ -659,13 +672,13 @@ export class XLSX {
 
       // Max width rather than having potentially massive column widths
       if (max > 40) {
-        return customWidth? customWidth : 54; 
+        return customWidth ? customWidth : 54;
       }
     }
 
     max *= 1.35;
 
     // And a min width
-    return max > 6 ? customWidth? customWidth: max  : 6;
+    return max > 6 ? (customWidth ? customWidth : max) : 6;
   }
 }
