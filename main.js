@@ -1,5 +1,5 @@
 import './style.css'
-import { XLSX } from './src';
+import { XLSX } from './xlsx';
 import json from './mock';
 import { saveAs } from "file-saver";
 
@@ -11,20 +11,21 @@ const config = {
     colConfig: [
         {
             colKey: 'phone',
-            width: 7
+            width: 40
         }
     ],
-    getCellStyle: (rowIndex, colIndex, cellData) => {
-        if(colIndex == 3)
-        return {
-            fontId: 0,
-            borderId: 1,
-            bgColor: '#FF0000',
+    getCellStyle: (rowIndex, colIndex, cellData) => {      
+        if(rowIndex == 1) return {
+            bgColor: '#00FFF0',
+            border: true
         }
-        return 0
     },
 }
-new XLSX().create(data,config).then(data=> saveAs(data, 'test.xlsx'))
+
+document.querySelector('#download').addEventListener('click',()=> {
+    new XLSX().create(data,config).then(data=> saveAs(data, 'sheet.xlsx'))
+})
+
 
 
 

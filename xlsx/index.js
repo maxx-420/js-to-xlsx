@@ -13,31 +13,26 @@ const STYLE_NODE_TYPE = {
   fill: "fills",
 };
 
-const CELL_STYLES = Object.freeze({
+const CELL_STYLES = {
   noStyle: 0,
   boldText: 2,
   wrapText: 10,
   wrappedBoldText: 11,
-});
+};
 
-const FONT_TYPES = Object.freeze({
+const FONT_TYPES = {
   normal: 0,
   bold: 2,
   italic: 3,
   underlined: 4,
-});
+};
 
-const BORDER_TYPES = Object.freeze({
-  noBorder: 0,
-  thinBorder: 1,
-});
-
-const TEXT_ALIGNMENT = Object.freeze({
+const TEXT_ALIGNMENT = {
   right: "right",
   left: "left",
   justify: "fill",
   center: "center",
-});
+};
 
 const CELL_STYLE_ATTRIBUTES = {
   [CELL_STYLES.noStyle]: {
@@ -101,10 +96,12 @@ const SPECIAL_CHARS = [
 ];
 
 export class XLSX {
+
+  _DEFAULT_STYLE = 0;
   _displayedColumns;
   _boldHeader;
   _wrapAll;
-  _getCellStyle;
+  __getCellStyleFn;
 
   _customXfNodes = [];
   _customFillNodes = [];
@@ -119,43 +116,43 @@ export class XLSX {
     this._displayedColumns = config.displayedColumns || [];
     this._boldHeader = config.boldHeader || true;
     this._wrapAll = config.wrapAll || false;
-    this._getCellStyle = config.getCellStyle || 0;
+    this.__getCellStyleFn = config.getCellStyle || 0;
     this._colConfig = config.colConfig || [];
 
     this._setDisplayedColumns(aoo);
     const aoa = toArrayOfArray(aoo, this._displayedColumns);
-    const worksheetTemplate = this.getTemplate("xl/worksheets/sheet1.xml")
-      .replace("{placeholder}", this.createWorksheetTemplate(aoa))
+    const worksheetTemplate = this._getTemplate("xl/worksheets/sheet1.xml")
+      .replace("{placeholder}", this._createWorksheetTemplate(aoa))
       .replace("{columnConfig}", this.createColumnConfig(aoa));
 
     const { xfTemplate, fontTemplate, fillTemplate } =
-      this.updateStylesTemplate();
-    const updatedStylesTemplate = this.getTemplate("xl/styles.xml")
+      this._updateStylesTemplate();
+    const updatedStylesTemplate = this._getTemplate("xl/styles.xml")
       .replace("{xf}", xfTemplate)
-      .replace(/(?<=<cellXfs count=")(\d*)(?=")/g, this._xfsCount || '$1')
+      .replace(/(<cellXfs count=")(\d*)(?=")/g, this._xfsCount? `$1${this._xfsCount}` : '$1$2')
       .replace("{font}", fontTemplate)
-      .replace(/(?<=<fonts count=")(\d*)(?=")/g, this._fontsCount || '$1')
+      .replace(/(<fonts count=")(\d*)(?=")/g, this._fontsCount? `$1${this._fontsCount}` : '$1$2')
       .replace("{fill}", fillTemplate)
-      .replace(/(?<=<fills count=")(\d*)(?=")/g, this._fillsCount || '$1');
+      .replace(/(<fills count=")(\d*)(?=")/g, this._fillsCount? `$1${this._fillsCount}` : '$1$2');
 
       console.log(updatedStylesTemplate)
 
     // define file structure
     const xlsx = {
       _rels: {
-        ".rels": this.getTemplate("_rels/.rels"),
+        ".rels": this._getTemplate("_rels/.rels"),
       },
       xl: {
         _rels: {
-          "workbook.xml.rels": this.getTemplate("xl/_rels/workbook.xml.rels"),
+          "workbook.xml.rels": this._getTemplate("xl/_rels/workbook.xml.rels"),
         },
-        "workbook.xml": this.getTemplate("xl/workbook.xml"),
+        "workbook.xml": this._getTemplate("xl/workbook.xml"),
         "styles.xml": updatedStylesTemplate,
         worksheets: {
           "sheet1.xml": worksheetTemplate,
         },
       },
-      "[Content_Types].xml": this.getTemplate("[Content_Types].xml"),
+      "[Content_Types].xml": this._getTemplate("[Content_Types].xml"),
     };
 
     let zip = new JSZip();
@@ -171,7 +168,7 @@ export class XLSX {
       });
   };
 
-  getTemplate(key) {
+  _getTemplate(key) {
     return templateStrings[key];
   }
 
@@ -192,29 +189,29 @@ export class XLSX {
     this._displayedColumns = result;
   };
 
-  createWorksheetTemplate = (aoa) => {
+  _createWorksheetTemplate = (aoa) => {
     let header = this._displayedColumns.map((colKey) => colKey.toUpperCase());
 
     let rows = [header, ...aoa]
-      .map((rowData, rowIndex) => this.createRows(rowData, rowIndex + 1))
+      .map((rowData, rowIndex) => this._createRows(rowData, rowIndex + 1))
       .join("");
     return rows;
   };
 
-  createRows = (rowData, rowIndex) => {
+  _createRows = (rowData, rowIndex) => {
     let cells = rowData
       .map((cellData, cellIndex) =>
-        this.createCell(cellData, cellIndex, rowIndex)
+        this._createCell(cellData, cellIndex, rowIndex)
       )
       .join("");
     return `<row r="${rowIndex}">${cells}</row>`;
   };
 
-  createCell = (cellData, cellIndex, rowIndex) => {
+  _createCell = (cellData, cellIndex, rowIndex) => {
     if (cellData == null || cellData == undefined) {
       return "";
     }
-    let cellPostion = this.getCellPos(cellIndex, rowIndex);
+    let cellPostion = this._getCellPos(cellIndex, rowIndex);
 
     // Special formatting options
     let specialCell;
@@ -245,8 +242,8 @@ export class XLSX {
     }
     if (specialCell) return specialCell;
 
-    const cellType = this.getCellType(cellData);
-    const cellStyle = this.getCellStyle(rowIndex, cellIndex + 1, cellData);
+    const cellType = this._getCellType(cellData);
+    const cellStyle = this._getCellStyle(rowIndex, cellIndex + 1, cellData);
 
     if (cellType == CELL_DATA_TYPE.number) {
       return createNode({
@@ -287,17 +284,17 @@ export class XLSX {
     });
   };
 
-  getCellStyle(rowIndex, cellIndex, cellData) {
+  _getCellStyle(rowIndex, cellIndex, cellData) {
 
-    let cellStyle = typeof this._getCellStyle == 'function'?  this._getCellStyle(rowIndex, cellIndex, cellData): this._getCellStyle;
+    let cellStyle = typeof this.__getCellStyleFn == 'function'?  this.__getCellStyleFn(rowIndex, cellIndex, cellData): this._DEFAULT_STYLE;
 
     if(cellStyle == null || cellStyle == undefined){
-      throw new Error('getCellStyle must return a number or object');
+      cellStyle = this._DEFAULT_STYLE;
     }
 
     const isPrefixQuoteRequired = cellData.toString().match(/^([+,=,-])/g);
 
-    if (typeof this._getCellStyle == "function") {
+    if (typeof this.__getCellStyleFn == "function") {
         if (typeof cellStyle == "number") {
           // styles upto 12th xfs are in use
           let styleIndex = Math.min(Math.abs(cellStyle), 11);
@@ -313,18 +310,18 @@ export class XLSX {
           }
         }
 
-      return isPrefixQuoteRequired? this.createNewXfNode({ ...cellStyle, quotePrefix: true }): this.createNewXfNode(cellStyle)
+      return isPrefixQuoteRequired? this._createNewXfNode({ ...cellStyle, quotePrefix: true }): this._createNewXfNode(cellStyle)
     }
 
     return isPrefixQuoteRequired
-      ? this.createNewXfNode({
-          ...CELL_STYLE_ATTRIBUTES["0"],
+      ? this._createNewXfNode({
+          ...CELL_STYLE_ATTRIBUTES[this._DEFAULT_STYLE],
           quotePrefix: true,
         })
-      : this._getCellStyle;
+      : this._DEFAULT_STYLE;
   }
 
-  getCellPos(cellIndex, rowIndex) {
+  _getCellPos(cellIndex, rowIndex) {
     var ordA = "A".charCodeAt(0);
     var ordZ = "Z".charCodeAt(0);
     var len = ordZ - ordA + 1;
@@ -338,7 +335,7 @@ export class XLSX {
     return s + rowIndex;
   }
 
-  getCellType(cellData) {
+  _getCellType(cellData) {
     if (
       typeof cellData === "number" ||
       (cellData.match &&
@@ -351,9 +348,9 @@ export class XLSX {
     }
   }
 
-  createNewXfNode({
-    fontId = 0,
-    borderId = 0,
+  _createNewXfNode({
+    fontType = 0,
+    border = false,
     fontColor = null,
     bgColor = null,
     wrap = this._wrapAll,
@@ -361,12 +358,12 @@ export class XLSX {
     quotePrefix = false,
   }) {
     if (!this._xfsCount) {
-      this._xfsCount = this.getStyleNodeCount(STYLE_NODE_TYPE.xf);
+      this._xfsCount = this._getStyleNodeCount(STYLE_NODE_TYPE.xf);
     }
     let existingStyle = this._customXfNodes.find(({ data }) => {
       return (
-        data.fontId == fontId &&
-        data.borderId == borderId &&
+        data.fontId == fontType &&
+        data.borderId == (border? 1: 0) &&
         data.fontColor == fontColor &&
         data.bgColor == bgColor &&
         data.wrap == wrap &&
@@ -381,8 +378,8 @@ export class XLSX {
       this._customXfNodes.push({
         xfId: this._xfsCount,
         data: {
-          fontId,
-          borderId,
+          fontId: fontType,
+          borderId: border? 1: 0,
           fontColor,
           bgColor,
           wrap,
@@ -395,31 +392,31 @@ export class XLSX {
     }
   }
 
-  getStyleNodeCount(nodeType) {
-    let styleTemplate = this.getTemplate("xl/styles.xml");
+  _getStyleNodeCount(nodeType) {
+    let styleTemplate = this._getTemplate("xl/styles.xml");
     let nodeCount;
     let regExp;
     switch (nodeType) {
       case STYLE_NODE_TYPE.xf:
         regExp = new RegExp(
-          `(?<=<${STYLE_NODE_TYPE.xf} count=")\\d*(?=")`,
+          `(<${STYLE_NODE_TYPE.xf} count=")\\d*(?=")`,
           "g"
         );
-        nodeCount = +styleTemplate.match(regExp);
+        nodeCount = +styleTemplate.match(regExp).join('').replace(`<${STYLE_NODE_TYPE.xf} count="`,'');
         break;
       case STYLE_NODE_TYPE.font:
         regExp = new RegExp(
-          `(?<=<${STYLE_NODE_TYPE.font} count=")\\d*(?=")`,
+          `(<${STYLE_NODE_TYPE.font} count=")\\d*(?=")`,
           "g"
         );
-        nodeCount = +styleTemplate.match(regExp);
+        nodeCount = +styleTemplate.match(regExp).join('').replace(`<${STYLE_NODE_TYPE.font} count="`,'');;
         break;
       case STYLE_NODE_TYPE.fill:
         regExp = new RegExp(
-          `(?<=<${STYLE_NODE_TYPE.fill} count=")\\d*(?=")`,
+          `(<${STYLE_NODE_TYPE.fill} count=")\\d*(?=")`,
           "g"
         );
-        nodeCount = +styleTemplate.match(regExp);
+        nodeCount = +styleTemplate.match(regExp).join('').replace(`<${STYLE_NODE_TYPE.fill} count="`,'');;
         break;
       default:
         nodeCount = 0;
@@ -429,16 +426,16 @@ export class XLSX {
     return nodeCount;
   }
 
-  updateStylesTemplate() {
+  _updateStylesTemplate() {
     this._customXfNodes.forEach((xf) => {
       if (xf.data.fontColor) {
-        xf.data.fontId = this.createNewFontNode({
+        xf.data.fontId = this._createNewFontNode({
           fontId: xf.data.fontId,
           color: xf.data.fontColor,
         });
       }
       if (xf.data.bgColor) {
-        xf.data.fillId = this.createNewFillNode({ fgColor: xf.data.bgColor });
+        xf.data.fillId = this._createNewFillNode({ fgColor: xf.data.bgColor });
       }
     });
     //xf
@@ -569,9 +566,9 @@ export class XLSX {
     };
   }
 
-  createNewFontNode({ fontId, color }) {
+  _createNewFontNode({ fontId, color }) {
     if (!this._fontsCount) {
-      this._fontsCount = this.getStyleNodeCount(STYLE_NODE_TYPE.font);
+      this._fontsCount = this._getStyleNodeCount(STYLE_NODE_TYPE.font);
     }
     let fontType = Object.keys(FONT_TYPES).find(
       (key) => FONT_TYPES[key] == fontId
@@ -595,9 +592,9 @@ export class XLSX {
     }
   }
 
-  createNewFillNode({ fgColor }) {
+  _createNewFillNode({ fgColor }) {
     if (!this._fillsCount) {
-      this._fillsCount = this.getStyleNodeCount(STYLE_NODE_TYPE.fill);
+      this._fillsCount = this._getStyleNodeCount(STYLE_NODE_TYPE.fill);
     }
 
     let existingFill = this._customFillNodes.find(({ data }) => {

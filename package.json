@@ -3,10 +3,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "serve": "vite preview"
+    "serve": "vite preview",
+    "preview": "npm run build && live-server ./dist"
   },
   "devDependencies": {
     "@vitejs/plugin-legacy": "^1.4.1",
+    "live-server": "^1.2.1",
     "vite": "^2.3.7"
   },
   "dependencies": {

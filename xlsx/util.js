@@ -33,7 +33,7 @@ export const createNode = ({
     attributes ? " " + attributes : ""
   }>${data}</${nodeName}>`: `<${nodeName}${
     attributes ? " " + attributes : ""
-  } />`
+  }/>`
   return node;
 };
 
