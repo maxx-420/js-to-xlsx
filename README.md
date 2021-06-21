@@ -30,7 +30,8 @@ const data = [{...}] (Array of objects)
 
 const config = {
   displayedColums: ['objKey'] // Order of columns to be displayed. If null/empty then alphabetical order is maintained.
-  boldHeader: boolean // default: true,
+  boldHeaders: boolean // default: true,
+  upperCaseHeaders: boolean //default: false
   wrapAll: boolean // default: false,
   getCellStyle: (rowIndex, colIndex, cellData) => number/obj // expects a predefined style number or object.
   colConfig: [
